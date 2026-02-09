@@ -104,11 +104,15 @@ The frontend will run on `http://localhost:5173`
 
 ### Default Admin Access
 
-To create an admin user, register normally and then update the database:
+To create or reset the admin user, use the dedicated setup script:
 
-```sql
-UPDATE users SET role = 'admin' WHERE email = 'your-email@example.com';
+```bash
+cd server_py
+python setup_admin.py
 ```
+
+See [ADMIN_CREDENTIALS.md](ADMIN_CREDENTIALS.md) for detailed credentials and login instructions.
+See [SECURITY_SETUP.md](SECURITY_SETUP.md) for production deployment guide.
 
 ## 🏗️ Project Structure
 

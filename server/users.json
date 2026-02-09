@@ -3,5 +3,43 @@
     "id": "1770611789051",
     "username": "chaitanya",
     "password": "1234"
+  },
+  {
+    "id": "afd094e3-efef-4e0f-ab16-d3c00c04bfbb",
+    "email": "chaitanya@gmail.com",
+    "passwordHash": "$2b$10$nlZX1xZe0xFZuua0C09EiulVA1qPjGNjxXYo3fFMHUHbXUuqAXV0.",
+    "role": "student",
+    "isVerified": false,
+    "verificationToken": "4939e453576e5f8fae228162874c2d205d596de325fa1b3ca7c52904ec5d422f",
+    "accessibilitySettings": {
+      "highContrast": false,
+      "reduceMotion": false
+    },
+    "gamification": {
+      "points": 0,
+      "level": 1,
+      "badges": [],
+      "streak": 0
+    },
+    "createdAt": "2026-02-09T10:46:18.417Z"
+  },
+  {
+    "id": "ed2d9581-33b6-41c4-a2df-d058ce926cbc",
+    "email": "admin@Enable.com",
+    "passwordHash": "$2b$10$UQQlW7R5fqczgLcj2EksxuxbKEVMavyVZtMVb/NP9LfwSIX.3NhSG",
+    "role": "student",
+    "isVerified": false,
+    "verificationToken": "415178284eb625b8d517caacab7bcb450ce16d08ee5c42a17cd402d27a641beb",
+    "accessibilitySettings": {
+      "highContrast": false,
+      "reduceMotion": false
+    },
+    "gamification": {
+      "points": 0,
+      "level": 1,
+      "badges": [],
+      "streak": 0
+    },
+    "createdAt": "2026-02-09T10:47:18.952Z"
   }
 ]

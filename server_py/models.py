@@ -8,6 +8,7 @@ class User(db.Model):
 
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=True)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), default='student')
     is_verified = db.Column(db.Boolean, default=False)
@@ -21,6 +22,10 @@ class User(db.Model):
     # Password Reset
     reset_token = db.Column(db.String(100), nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
+    
+    # Security - Password Change Tracking
+    requires_password_change = db.Column(db.Boolean, default=False)
+    last_password_change = db.Column(db.DateTime, nullable=True)
 
 class Quiz(db.Model):
     __tablename__ = 'quizzes'
@@ -60,6 +65,19 @@ class Task(db.Model):
     
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=True) # Optional for now as tasks were global in legacy
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class UserProgress(db.Model):
+    __tablename__ = 'user_progress'
+
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
+    quiz_id = db.Column(db.String(50), db.ForeignKey('quizzes.id'), nullable=False)
+    status = db.Column(db.String(20), default='started') # started, in-progress, completed
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_activity = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('progress', lazy=True))
+    quiz = db.relationship('Quiz', backref=db.backref('progress_records', lazy=True))
 
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'

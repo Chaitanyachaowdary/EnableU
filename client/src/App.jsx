@@ -21,7 +21,13 @@ import QuizList from './components/quiz/QuizList';
 import QuizPlayer from './components/quiz/QuizPlayer';
 
 // Admin Components
-import AdminDashboard from './components/admin/AdminDashboard';
+import AdminLayout from './components/admin/layout/AdminLayout';
+import DashboardOverview from './components/admin/pages/DashboardOverview';
+import UserManagement from './components/admin/pages/UserManagement';
+import QuizManagement from './components/admin/pages/QuizManagement';
+import Analytics from './components/admin/pages/Analytics';
+
+
 
 
 const PrivateRoute = ({ children }) => {
@@ -95,14 +101,6 @@ function App() {
             }
           />
           <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <AdminDashboard />
-              </AdminRoute>
-            }
-          />
-          <Route
             path="/progress"
             element={
               <PrivateRoute>
@@ -110,6 +108,21 @@ function App() {
               </PrivateRoute>
             }
           />
+        </Route>
+
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          }
+        >
+          <Route index element={<DashboardOverview />} />
+          <Route path="users" element={<UserManagement />} />
+          <Route path="quizzes" element={<QuizManagement />} />
+          <Route path="analytics" element={<Analytics />} />
+
         </Route>
       </Routes>
     </AccessibilityProvider>

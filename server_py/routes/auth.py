@@ -3,6 +3,7 @@ from extensions import db
 from models import User, AuditLog
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
+from utils.security import validate_password_strength
 import datetime
 import uuid
 
@@ -21,7 +22,8 @@ def register():
         return jsonify({'message': 'Email already exists'}), 400
 
     hashed_password = generate_password_hash(password)
-    new_user = User(email=email, password_hash=hashed_password)
+    name = data.get('name')
+    new_user = User(email=email, name=name, password_hash=hashed_password)
     
     db.session.add(new_user)
     db.session.commit()
@@ -63,9 +65,11 @@ def login():
         'user': {
             'id': str(user.id),
             'email': user.email,
+            'name': user.name,
             'role': user.role,
             'gamification': user.gamification,
-            'settings': user.accessibility_settings
+            'settings': user.accessibility_settings,
+            'requires_password_change': user.requires_password_change or False
         }
     }), 200
 
@@ -81,9 +85,11 @@ def me():
     return jsonify({
         'id': str(user.id),
         'email': user.email,
+        'name': user.name,
         'role': user.role,
         'gamification': user.gamification,
-        'settings': user.accessibility_settings
+        'settings': user.accessibility_settings,
+        'requires_password_change': user.requires_password_change or False
     }), 200
 
 @auth_bp.route('/forgot-password', methods=['POST'])
@@ -127,3 +133,63 @@ def reset_password():
     db.session.commit()
     
     return jsonify({'message': 'Password has been reset successfully.'}), 200
+
+@auth_bp.route('/change-password', methods=['POST'])
+@jwt_required()
+def change_password():
+    """Change user password with strength validation"""
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    
+    data = request.get_json()
+    current_password = data.get('currentPassword')
+    new_password = data.get('newPassword')
+    
+    if not current_password or not new_password:
+        return jsonify({'message': 'Current password and new password are required'}), 400
+    
+    # Verify current password
+    if not check_password_hash(user.password_hash, current_password):
+        return jsonify({'message': 'Current password is incorrect'}), 401
+    
+    # Validate new password strength
+    validation = validate_password_strength(new_password)
+    if not validation['valid']:
+        return jsonify({
+            'message': 'Password does not meet security requirements',
+            'errors': validation['errors']
+        }), 400
+    
+    # Check if new password is same as current
+    if check_password_hash(user.password_hash, new_password):
+        return jsonify({'message': 'New password must be different from current password'}), 400
+    
+    # Update password
+    user.password_hash = generate_password_hash(new_password)
+    user.requires_password_change = False
+    user.last_password_change = datetime.datetime.utcnow()
+    db.session.commit()
+    
+    # Log password change
+    if user.role == 'admin':
+        try:
+            log_entry = AuditLog(
+                user_id=user.id,
+                action='PASSWORD_CHANGE',
+                details=f'Admin {user.email} changed their password',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent', '')[:256]
+            )
+            db.session.add(log_entry)
+            db.session.commit()
+        except Exception as e:
+            print(f"Failed to log password change: {e}")
+            db.session.rollback()
+    
+    return jsonify({
+        'message': 'Password changed successfully',
+        'requires_password_change': False
+    }), 200

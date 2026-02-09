@@ -1,27 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Award, Zap, TrendingUp, BookOpen, CheckSquare } from 'lucide-react';
+import { Award, Zap, TrendingUp, BookOpen, CheckSquare, ChevronRight } from 'lucide-react';
 
 const Dashboard = () => {
     const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || '{}'));
     const [leaderboard, setLeaderboard] = useState([]);
+    const [progress, setProgress] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Refresh user data (for points)
-                // In real app, we'd have a /me endpoint. For now, we rely on local storage or login response.
-                // But wait, points update on backend. We need to fetch latest user data.
-                // Let's assume we can re-login or just fetch leaderboard for now.
-                // Actually, I didn't make a /me endpoint.
-                // I'll make a quick call to leaderboard to see if I'm there, or just use localStorage for now 
-                // and accept it might be stale until re-login. 
-                // BETTER: Add a simple fetch to leaderboard which is public-ish.
+                const token = localStorage.getItem('token');
+                const config = { headers: { Authorization: `Bearer ${token}` } };
 
-                const lbResponse = await axios.get('/api/leaderboard');
+                const [lbResponse, progressRes] = await Promise.all([
+                    axios.get('/api/leaderboard', config),
+                    axios.get('/api/progress', config)
+                ]);
+
                 setLeaderboard(lbResponse.data);
+                setProgress(progressRes.data);
             } catch (error) {
                 console.error('Failed to fetch dashboard data', error);
             } finally {
@@ -41,7 +41,9 @@ const Dashboard = () => {
         <div className="p-6 max-w-6xl mx-auto space-y-8">
             {/* Welcome Section */}
             <header className="bg-indigo-600 rounded-2xl p-8 text-white shadow-lg">
-                <h1 className="text-3xl font-bold mb-2">Welcome back, {user.email?.split('@')[0]}!</h1>
+                <h1 className="text-3xl font-bold mb-2">
+                    Welcome back, {user.name || user.email?.split('@')[0]}!
+                </h1>
                 <p className="opacity-90">You are on a streak! Keep learning to earn more badges.</p>
 
                 <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -51,7 +53,7 @@ const Dashboard = () => {
                         </div>
                         <div>
                             <p className="text-sm opacity-75">Total Points</p>
-                            <p className="text-2xl font-bold">{myStats.points}</p>
+                            <p className="text-2xl font-bold">{progress?.totalPoints || myStats.points}</p>
                         </div>
                     </div>
                     <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl flex items-center gap-4">
@@ -60,7 +62,7 @@ const Dashboard = () => {
                         </div>
                         <div>
                             <p className="text-sm opacity-75">Badges Earned</p>
-                            <p className="text-2xl font-bold">{myStats.badges}</p>
+                            <p className="text-2xl font-bold">{progress?.totalBadges || myStats.badges}</p>
                         </div>
                     </div>
                     <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl flex items-center gap-4">
@@ -68,8 +70,8 @@ const Dashboard = () => {
                             <TrendingUp size={24} />
                         </div>
                         <div>
-                            <p className="text-sm opacity-75">Current Level</p>
-                            <p className="text-2xl font-bold">{Math.floor(myStats.points / 100) + 1}</p>
+                            <p className="text-sm opacity-75">Course Completion</p>
+                            <p className="text-2xl font-bold">{progress?.completionPercentage || 0}%</p>
                         </div>
                     </div>
                 </div>
@@ -84,20 +86,55 @@ const Dashboard = () => {
                             Continue Learning
                         </h2>
                         <div className="grid md:grid-cols-2 gap-4">
-                            <Link to="/quizzes" className="group bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-indigo-500 transition-colors">
-                                <h3 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Accessibility Fundamentals</h3>
-                                <p className="text-sm text-gray-500 mt-2">Master WCAG principles.</p>
-                                <div className="mt-4 w-full bg-gray-100 rounded-full h-2">
-                                    <div className="bg-indigo-600 h-2 rounded-full" style={{ width: '40%' }}></div>
-                                </div>
-                            </Link>
-                            <Link to="/quizzes" className="group bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-indigo-500 transition-colors">
-                                <h3 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Gamification 101</h3>
-                                <p className="text-sm text-gray-500 mt-2">Understanding engagement.</p>
-                                <div className="mt-4 w-full bg-gray-100 rounded-full h-2">
-                                    <div className="bg-indigo-600 h-2 rounded-full" style={{ width: '0%' }}></div>
-                                </div>
-                            </Link>
+                            {/* In-Progress Items */}
+                            {progress?.inProgress && progress.inProgress.length > 0 && (
+                                progress.inProgress.map((item, idx) => (
+                                    <div key={`ip-${idx}`} className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200 bg-indigo-50/30">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h3 className="font-bold text-gray-900">{item.quizTitle}</h3>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">In Progress</span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">Last seen: {new Date(item.lastActivity).toLocaleDateString()}</p>
+                                        <div className="mt-4 flex items-center justify-between">
+                                            <Link to={`/quizzes/${item.quizId}`} className="text-sm font-bold text-indigo-600 hover:text-indigo-800">Continue <ChevronRight size={14} className="inline" /></Link>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+
+                            {/* Completed Items (Recent Activity) */}
+                            {progress?.recentActivity && progress.recentActivity.length > 0 ? (
+                                progress.recentActivity.map((activity, idx) => {
+                                    // Don't show if already in the In-Progress list (though submission should clear that)
+                                    return (
+                                        <div key={`comp-${idx}`} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                            <h3 className="font-bold text-gray-900">{activity.quizTitle}</h3>
+                                            <p className="text-xs text-gray-500 mt-1">Last completed: {new Date(activity.completedAt).toLocaleDateString()}</p>
+                                            <div className="mt-4 flex items-center justify-between">
+                                                <span className="text-sm font-medium text-emerald-600">Score: {activity.score}</span>
+                                                <Link to="/quizzes" className="text-xs font-bold text-gray-600 hover:text-indigo-600">Retake</Link>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (!progress?.inProgress || progress.inProgress.length === 0) && (
+                                <>
+                                    <Link to="/quizzes" className="group bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-indigo-500 transition-colors">
+                                        <h3 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Accessibility Fundamentals</h3>
+                                        <p className="text-sm text-gray-500 mt-2">Start your learning journey.</p>
+                                        <div className="mt-4 flex items-center gap-2 text-indigo-600 font-medium">
+                                            Start <ChevronRight size={14} />
+                                        </div>
+                                    </Link>
+                                    <Link to="/quizzes" className="group bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-indigo-500 transition-colors">
+                                        <h3 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">View All Modules</h3>
+                                        <p className="text-sm text-gray-500 mt-2">Explore the curriculum.</p>
+                                        <div className="mt-4 flex items-center gap-2 text-indigo-600 font-medium">
+                                            Explore <ChevronRight size={14} />
+                                        </div>
+                                    </Link>
+                                </>
+                            )}
                         </div>
                     </section>
                 </div>

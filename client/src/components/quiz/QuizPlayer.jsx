@@ -28,9 +28,17 @@ const QuizPlayer = () => {
     useEffect(() => {
         const fetchQuiz = async () => {
             try {
-                const response = await axios.get(`/api/quizzes/${id}`);
+                const token = localStorage.getItem('token');
+                const response = await axios.get(`/api/quizzes/${id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
                 setQuiz(response.data);
                 setTimeLeft(response.data.timeLimit);
+
+                // Mark quiz as started in progress tracking
+                await axios.post('/api/progress/start', { quizId: id }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
             } catch (error) {
                 console.error('Failed to fetch quiz', error);
             } finally {
@@ -109,7 +117,10 @@ const QuizPlayer = () => {
         setIsSubmitting(true);
 
         try {
-            const response = await axios.post(`/api/quizzes/${id}/submit`, { answers });
+            const token = localStorage.getItem('token');
+            const response = await axios.post(`/api/quizzes/${id}/submit`, { answers }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
             setResult(response.data);
             setTimeLeft(0);
         } catch (error) {

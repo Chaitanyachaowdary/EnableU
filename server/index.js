@@ -282,8 +282,8 @@ app.get('/api/leaderboard', authenticateToken, async (req, res) => {
         .map(u => ({
             id: u.id,
             email: u.email, // In real app, use display name
-            points: u.gamification.points,
-            badges: u.gamification.badges.length
+            points: u.gamification?.points || 0,
+            badges: u.gamification?.badges?.length || 0
         }))
         .sort((a, b) => b.points - a.points)
         .slice(0, 10); // Top 10

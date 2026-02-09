@@ -95,6 +95,14 @@ def submit_quiz(quiz_id):
     if correct_count == total_questions and quiz_id not in user.gamification.get('badges', []):
         user.gamification.setdefault('badges', []).append(quiz_id)
     
+    # Update or Create Progress Record
+    from models import UserProgress
+    progress = UserProgress.query.filter_by(user_id=current_user_id, quiz_id=quiz_id).first()
+    if not progress:
+        progress = UserProgress(user_id=current_user_id, quiz_id=quiz_id)
+        db.session.add(progress)
+    
+    progress.status = 'completed'
     db.session.commit()
     
     # Save result
@@ -140,6 +148,35 @@ def submit_quiz(quiz_id):
         'feedback': feedback
     })
 
+@gamification_bp.route('/progress/start', methods=['POST'])
+@jwt_required()
+def start_quiz_progress():
+    current_user_id = get_jwt_identity()
+    data = request.get_json()
+    quiz_id = data.get('quizId')
+    
+    if not quiz_id:
+        return jsonify({'error': 'Quiz ID required'}), 400
+        
+    from models import UserProgress
+    progress = UserProgress.query.filter_by(user_id=current_user_id, quiz_id=quiz_id).first()
+    
+    if not progress:
+        progress = UserProgress(user_id=current_user_id, quiz_id=quiz_id, status='started')
+        db.session.add(progress)
+        db.session.commit()
+    elif progress.status == 'completed':
+        # If they are retaking, we could either leave it completed or reset to in-progress
+        # For now, let's just update last_activity
+        progress.last_activity = datetime.utcnow()
+        db.session.commit()
+    else:
+        progress.status = 'in-progress'
+        progress.last_activity = datetime.utcnow()
+        db.session.commit()
+        
+    return jsonify({'message': 'Progress updated', 'status': progress.status})
+
 @gamification_bp.route('/leaderboard', methods=['GET'])
 @jwt_required()
 def get_leaderboard():
@@ -172,10 +209,26 @@ def get_user_progress():
     all_quizzes = Quiz.query.all()
     total_quizzes = len(all_quizzes)
     
-    # Get user's completed quizzes
+    # Get user's results
     user_results = Result.query.filter_by(user_id=current_user_id).all()
     completed_quiz_ids = set(result.quiz_id for result in user_results)
     completed_count = len(completed_quiz_ids)
+    
+    # Get "In Progress" quizzes
+    from models import UserProgress
+    progress_records = UserProgress.query.filter_by(user_id=current_user_id).all()
+    in_progress_list = []
+    
+    for record in progress_records:
+        if record.status in ['started', 'in-progress']:
+            quiz = Quiz.query.get(record.quiz_id)
+            if quiz:
+                in_progress_list.append({
+                    'quizId': quiz.id,
+                    'quizTitle': quiz.title,
+                    'status': record.status,
+                    'lastActivity': record.last_activity.isoformat() if record.last_activity else None
+                })
     
     # Calculate average score
     if user_results:
@@ -215,5 +268,7 @@ def get_user_progress():
         'totalPoints': user.gamification.get('points', 0),
         'totalBadges': len(user.gamification.get('badges', [])),
         'level': user.gamification.get('level', 1),
-        'recentActivity': recent_activity
+        'recentActivity': recent_activity,
+        'inProgress': in_progress_list
     })
+

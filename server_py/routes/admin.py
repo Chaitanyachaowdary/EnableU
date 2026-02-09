@@ -38,11 +38,21 @@ def admin_required(fn):
         verify_jwt_in_request()
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
+        
         if not user or user.role != 'admin':
             log_admin_activity('UNAUTHORIZED_ACCESS_ATTEMPT', 
                              f'User {user_id} attempted to access admin endpoint', 
                              user_id)
             return jsonify({'message': 'Admins only!'}), 403
+        
+        # Check if password change is required
+        if user.requires_password_change:
+            return jsonify({
+                'message': 'Password change required',
+                'error': 'Please change your password before accessing admin features',
+                'requires_password_change': True
+            }), 403
+        
         return fn(*args, **kwargs)
     return wrapper
 
@@ -56,9 +66,53 @@ def get_users():
         'id': str(u.id),
         'email': u.email,
         'role': u.role,
+        'name': u.name,
         'gamification': u.gamification,
         'created_at': u.created_at.isoformat() if u.created_at else None
     } for u in users])
+
+@admin_bp.route('/users', methods=['POST'])
+@admin_required
+def create_user():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+    name = data.get('name')
+    role = data.get('role', 'student')
+
+    if not email or not password:
+        return jsonify({'message': 'Email and password are required'}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({'message': 'Email already exists'}), 400
+
+    if role not in ['student', 'teacher', 'admin']:
+        return jsonify({'message': 'Invalid role'}), 400
+
+    from werkzeug.security import generate_password_hash
+    hashed_password = generate_password_hash(password)
+    
+    new_user = User(
+        email=email, 
+        name=name, 
+        password_hash=hashed_password,
+        role=role
+    )
+    
+    db.session.add(new_user)
+    db.session.commit()
+
+    log_admin_activity('CREATE_USER', f'Created new {role}: {email}')
+    
+    return jsonify({
+        'message': 'User created successfully',
+        'user': {
+            'id': str(new_user.id),
+            'email': new_user.email,
+            'name': new_user.name,
+            'role': new_user.role
+        }
+    }), 201
 
 @admin_bp.route('/users/<user_id>/role', methods=['PUT'])
 @admin_required
