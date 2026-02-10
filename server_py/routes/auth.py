@@ -100,6 +100,47 @@ def me():
         'requires_password_change': user.requires_password_change or False
     }), 200
 
+@auth_bp.route('/me', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+        
+    data = request.get_json()
+    
+    if data.get('name'):
+        user.name = data['name']
+        
+    if data.get('email'):
+        # Check if email is different and available
+        if data['email'] != user.email:
+            existing = User.query.filter_by(email=data['email']).first()
+            if existing:
+                return jsonify({'message': 'Email already in use'}), 400
+            user.email = data['email']
+            
+    # Update accessibility settings if provided
+    if data.get('settings'):
+        user.accessibility_settings = data['settings']
+            
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Profile updated successfully',
+        'user': {
+            'id': str(user.id),
+            'email': user.email,
+            'name': user.name,
+            'role': user.role,
+            'gamification': user.gamification,
+            'settings': user.accessibility_settings,
+            'requires_password_change': user.requires_password_change or False
+        }
+    }), 200
+
 @auth_bp.route('/forgot-password', methods=['POST'])
 def forgot_password():
     data = request.get_json()

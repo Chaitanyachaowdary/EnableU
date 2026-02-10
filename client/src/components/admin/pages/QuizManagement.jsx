@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import {
     Plus, Trash2, Edit, X, Save,
     Download, BookOpen, Clock, Award
 } from 'lucide-react';
 import Toast from '../../common/Toast';
 import ConfirmDialog from '../../common/ConfirmDialog';
+import { useApi } from '../../../hooks/useApi';
+import { SkeletonLeaderboard } from '../../common/SkeletonLoaders';
 
 const QuizManagement = () => {
+    const { request, loading, error } = useApi();
+    const { request: actionReq, loading: actionLoading } = useApi();
+
     const [quizzes, setQuizzes] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, type: 'danger' });
     const [showQuizForm, setShowQuizForm] = useState(false);
-    const [isEditMode, setIsEditMode] = useState(false); // New state for edit mode
+    const [isEditMode, setIsEditMode] = useState(false);
 
     const [quizForm, setQuizForm] = useState({
-        id: '', // Added id to state
+        id: '',
         title: '',
         description: '',
         time_limit: 300,
@@ -35,21 +38,16 @@ const QuizManagement = () => {
 
     useEffect(() => {
         fetchQuizzes();
-    }, []);
+    }, [request]);
 
     const fetchQuizzes = async () => {
-        setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('/api/quizzes', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setQuizzes(response.data);
+            const data = await request('get', '/quizzes');
+            setQuizzes(data);
         } catch (error) {
             console.error('Error fetching quizzes:', error);
+            // Error is handled by useApi but custom toast offers better UX here
             setToast({ message: 'Failed to fetch quizzes', type: 'error' });
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -61,14 +59,10 @@ const QuizManagement = () => {
             type: 'danger',
             onConfirm: async () => {
                 try {
-                    const token = localStorage.getItem('token');
-                    await axios.delete(`/api/admin/quizzes/${quizId}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    await actionReq('delete', `/admin/quizzes/${quizId}`);
                     setQuizzes(quizzes.filter(q => q.id !== quizId));
                     setToast({ message: 'Quiz deleted successfully', type: 'success' });
                 } catch (error) {
-                    console.error('Error deleting quiz:', error);
                     setToast({ message: 'Failed to delete quiz', type: 'error' });
                 } finally {
                     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -95,27 +89,31 @@ const QuizManagement = () => {
     };
 
     const handleSaveQuiz = async () => {
-        // Validation logic
         if (!quizForm.title || !quizForm.description) {
             setToast({ message: 'Title and description are required', type: 'error' });
             return;
         }
 
         try {
-            const token = localStorage.getItem('token');
-            const url = isEditMode ? `/api/admin/quizzes/${quizForm.id}` : '/api/admin/quizzes';
+            const url = isEditMode ? `/admin/quizzes/${quizForm.id}` : '/admin/quizzes';
             const method = isEditMode ? 'put' : 'post';
 
-            await axios[method](url, quizForm, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await actionReq(method, url, quizForm);
 
             setToast({ message: `Quiz ${isEditMode ? 'updated' : 'created'} successfully`, type: 'success' });
             setShowQuizForm(false);
             resetForm();
-            fetchQuizzes();
+
+            // If created, append. If updated, replace.
+            if (isEditMode) {
+                setQuizzes(quizzes.map(q => q.id === quizForm.id ? response.quiz : q));
+                // Reloading all to ensure consistency is safer though
+                fetchQuizzes();
+            } else {
+                fetchQuizzes();
+            }
+
         } catch (error) {
-            console.error(`Error ${isEditMode ? 'updating' : 'creating'} quiz:`, error);
             setToast({ message: `Failed to ${isEditMode ? 'update' : 'create'} quiz`, type: 'error' });
         }
     };
@@ -176,10 +174,10 @@ const QuizManagement = () => {
         setQuizForm({ ...quizForm, questions: updated });
     };
 
-    if (loading) return null;
+    if (loading && quizzes.length === 0) return <SkeletonLeaderboard />;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in duration-500">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             <ConfirmDialog
                 isOpen={confirmDialog.isOpen}
@@ -314,7 +312,9 @@ const QuizManagement = () => {
                     </div>
                     <div className="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3 bg-gray-50/30 dark:bg-gray-900/10">
                         <button onClick={() => setShowQuizForm(false)} className="px-6 py-2 font-semibold text-gray-600 hover:text-gray-900">Cancel</button>
-                        <button onClick={handleSaveQuiz} className="px-8 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-sm transition-all">{isEditMode ? 'Update' : 'Save'} Module</button>
+                        <button disabled={actionLoading} onClick={handleSaveQuiz} className="px-8 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-sm transition-all disabled:opacity-50">
+                            {actionLoading ? 'Saving...' : (isEditMode ? 'Update Module' : 'Save Module')}
+                        </button>
                     </div>
                 </div>
             )}

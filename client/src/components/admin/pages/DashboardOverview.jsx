@@ -13,69 +13,32 @@ const DashboardOverview = () => {
     const { request } = useApi();
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
-    const [analytics, setAnalytics] = useState({
+    const [stats, setStats] = useState({
         totalUsers: 0,
-        totalQuizzes: 0,
         activeUsers: 0,
-        totalPoints: 0,
-        rawUsers: []
+        totalQuizzes: 0,
+        totalPoints: 0
     });
-
-    // Process data for charts
-    const processGrowthData = (users) => {
-        if (!users || users.length === 0) return [];
-
-        const dates = users.map(u => u.created_at ? u.created_at.split('T')[0] : 'Unknown')
-            .filter(d => d !== 'Unknown')
-            .sort();
-
-        const countMap = {};
-        dates.forEach(date => {
-            countMap[date] = (countMap[date] || 0) + 1;
-        });
-
-        let cumulative = 0;
-        return Object.keys(countMap).map(date => {
-            cumulative += countMap[date];
-            return { date, users: cumulative };
-        });
-    };
-
-    const processBadgeData = (users) => {
-        if (!users) return [];
-        const distribution = { '0': 0, '1': 0, '2': 0, '3+': 0 };
-
-        users.forEach(u => {
-            const count = u.gamification?.badges?.length || 0;
-            if (count === 0) distribution['0']++;
-            else if (count === 1) distribution['1']++;
-            else if (count === 2) distribution['2']++;
-            else distribution['3+']++;
-        });
-
-        return [
-            { name: '0 Badges', value: distribution['0'] },
-            { name: '1 Badge', value: distribution['1'] },
-            { name: '2 Badges', value: distribution['2'] },
-            { name: '3+ Badges', value: distribution['3+'] },
-        ];
-    };
+    const [growthData, setGrowthData] = useState([]);
+    const [badgeData, setBadgeData] = useState([]);
 
     useEffect(() => {
         const fetchAnalytics = async () => {
             try {
-                const [users, quizzes] = await Promise.all([
-                    request('get', '/admin/users'),
-                    request('get', '/quizzes')
-                ]);
+                // Senior Best Practice: Fetch pre-aggregated data from server
+                // instead of processing thousands of records on the client.
+                const data = await request('get', '/admin/analytics');
 
-                setAnalytics({
-                    totalUsers: users.length,
-                    totalQuizzes: quizzes.length,
-                    activeUsers: users.filter(u => (u.gamification?.points || 0) > 0).length,
-                    totalPoints: users.reduce((sum, u) => sum + (u.gamification?.points || 0), 0),
-                    rawUsers: users // Store for charts
+                setStats({
+                    totalUsers: data.total_users,
+                    activeUsers: data.active_users,
+                    totalQuizzes: data.total_quizzes,
+                    totalPoints: data.total_points
                 });
+
+                setGrowthData(data.growth_trends || []);
+                setBadgeData(data.badge_distribution || []);
+
             } catch (error) {
                 console.error('Error fetching analytics:', error);
                 setToast({ message: 'Failed to load analytics', type: 'error' });
@@ -87,14 +50,11 @@ const DashboardOverview = () => {
         fetchAnalytics();
     }, [request]);
 
-    const growthData = analytics.totalUsers > 0 ? processGrowthData(analytics.rawUsers || []) : [];
-    const badgeData = analytics.totalUsers > 0 ? processBadgeData(analytics.rawUsers || []) : [];
-
-    const stats = [
-        { label: 'Total Users', value: analytics.totalUsers, icon: Users, color: 'indigo' },
-        { label: 'Active Learners', value: analytics.activeUsers, icon: Activity, color: 'emerald' },
-        { label: 'Total Modules', value: analytics.totalQuizzes, icon: BookOpen, color: 'purple' },
-        { label: 'Total Points', value: analytics.totalPoints, icon: Award, color: 'amber' }
+    const statCards = [
+        { label: 'Total Users', value: stats.totalUsers, icon: Users, color: 'indigo' },
+        { label: 'Active Learners', value: stats.activeUsers, icon: Activity, color: 'emerald' },
+        { label: 'Total Modules', value: stats.totalQuizzes, icon: BookOpen, color: 'purple' },
+        { label: 'Total Points', value: stats.totalPoints, icon: Award, color: 'amber' }
     ];
 
     if (loading) {
@@ -107,7 +67,7 @@ const DashboardOverview = () => {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {stats.map((stat, idx) => (
+                {statCards.map((stat, idx) => (
                     <StatsCard
                         key={idx}
                         icon={stat.icon}
@@ -139,7 +99,10 @@ const DashboardOverview = () => {
                                     tick={{ fontSize: 12, fill: '#6B7280' }}
                                     tickLine={false}
                                     axisLine={false}
-                                    tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                    tickFormatter={(val) => {
+                                        const d = new Date(val);
+                                        return isNaN(d.getTime()) ? val : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                                    }}
                                 />
                                 <YAxis
                                     tick={{ fontSize: 12, fill: '#6B7280' }}

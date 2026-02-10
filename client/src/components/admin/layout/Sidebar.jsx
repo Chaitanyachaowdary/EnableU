@@ -5,10 +5,12 @@ import { LayoutDashboard, Users, BookOpen, BarChart2, Shield, X, LogOut } from '
 const Sidebar = ({ isOpen, toggleSidebar }) => {
     const navItems = [
         { path: '/admin', icon: LayoutDashboard, label: 'Overview', end: true },
-        { path: '/admin/users', icon: Users, label: 'User Management' },
         { path: '/admin/quizzes', icon: BookOpen, label: 'Quiz Management' },
+        { path: '/admin/users', icon: Users, label: 'User Management' },
         { path: '/admin/analytics', icon: BarChart2, label: 'Analytics' },
     ];
+
+
 
     return (
         <>

@@ -264,21 +264,106 @@ def get_analytics():
     
     # Recent activity count
     from datetime import timedelta
-    now = datetime.utcnow()
-    week_ago = now - timedelta(days=7)
+    today = datetime.utcnow()
+    week_ago = today - timedelta(days=7)
     
     recent_admin_actions = AuditLog.query.filter(
         AuditLog.timestamp >= week_ago
     ).count()
     
+    # --- Advanced Analytics for Charts ---
+    
+    # 1. User Growth Trends (last 30 days)
+    thirty_days_ago = today - timedelta(days=30)
+    
+    # Query to group creating_at by date
+    # Note: Using date_trunc for PostgreSQL
+    growth_data = db.session.query(
+        func.date_trunc('day', User.created_at).label('date'),
+        func.count(User.id)
+    ).filter(
+        User.created_at >= thirty_days_ago
+    ).group_by(
+        func.date_trunc('day', User.created_at)
+    ).order_by(
+        func.date_trunc('day', User.created_at)
+    ).all()
+    
+    # Format for frontend: [{'date': '2023-10-01', 'users': 5}, ...]
+    # We need cumulative sum ideally, but for now let's just show daily new users 
+    # or calculate cumulative on the fly if needed. 
+    # Let's do cumulative calculation here for robustness.
+    
+    # First, get total count before 30 days ago
+    base_count = User.query.filter(User.created_at < thirty_days_ago).count()
+    
+    formatted_growth_data = []
+    running_total = base_count
+    
+    # We should fill in missing dates for a smooth chart
+    current_date = thirty_days_ago
+    
+    # Create a map of existing data
+    data_map = {str(d[0].date()): d[1] for d in growth_data if d[0]}
+    
+    while current_date <= today:
+        date_str = str(current_date.date())
+        daily_count = data_map.get(date_str, 0)
+        running_total += daily_count
+        
+        formatted_growth_data.append({
+            'date': date_str,
+            'users': running_total,
+            'newUsers': daily_count
+        })
+        current_date += timedelta(days=1)
+
+    # 2. Badge Distribution
+    # This requires more complex JSONB querying or processing in python if volume is low.
+    # For scalability, we'd use SQL, but JSONB aggregation can be tricky across versions.
+    # Efficient Hybrid approach: Fetch only the gamification column
+    
+    user_gamification_data = db.session.query(User.gamification).all()
+    
+    badge_counts = {'0': 0, '1': 0, '2': 0, '3+': 0}
+    
+    for g_data in user_gamification_data:
+        g = g_data[0] or {} # Handle None
+        badges = g.get('badges', [])
+        count = len(badges)
+        
+        if count == 0: badge_counts['0'] += 1
+        elif count == 1: badge_counts['1'] += 1
+        elif count == 2: badge_counts['2'] += 1
+        else: badge_counts['3+'] += 1
+        
+    formatted_badge_data = [
+        {'name': '0 Badges', 'value': badge_counts['0']},
+        {'name': '1 Badge', 'value': badge_counts['1']},
+        {'name': '2 Badges', 'value': badge_counts['2']},
+        {'name': '3+ Badges', 'value': badge_counts['3+']}
+    ]
+
+    # 3. Total Points (Global)
+    # Perform sum on the JSONB field cast to integer
+    # Note: This syntax is PostgreSQL specific for JSONB 'points'
+    total_points = db.session.query(
+        func.sum(
+            func.cast(User.gamification['points'].astext, db.Integer)
+        )
+    ).scalar() or 0
+
     log_admin_activity('VIEW_ANALYTICS', 'Viewed platform analytics')
     
     return jsonify({
         'total_users': total_users,
         'total_quizzes': total_quizzes,
         'active_users': active_users,
+        'total_points': int(total_points),
         'role_distribution': {role: count for role, count in role_distribution},
-        'recent_admin_actions': recent_admin_actions
+        'recent_admin_actions': recent_admin_actions,
+        'growth_trends': formatted_growth_data,
+        'badge_distribution': formatted_badge_data
     })
 
 @admin_bp.route('/users/<user_id>', methods=['PUT'])

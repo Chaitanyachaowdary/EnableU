@@ -1,43 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Users, BookOpen, Activity, TrendingUp, Award, Clock, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import Toast from '../../common/Toast';
 import StatsCard from '../../common/StatsCard';
 import SkeletonStatsGrid from '../../common/SkeletonStatsGrid';
+import { useApi } from '../../../hooks/useApi';
 
 const Analytics = () => {
+    const { request, loading, error } = useApi();
     const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
 
     useEffect(() => {
         const fetchAnalytics = async () => {
             try {
-                const token = localStorage.getItem('token');
-                const response = await axios.get('/api/admin/analytics', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setData(response.data);
+                const response = await request('get', '/admin/analytics');
+                setData(response);
             } catch (error) {
                 console.error('Failed to fetch analytics', error);
                 setToast({ type: 'error', message: 'Failed to load analytics data' });
-            } finally {
-                setLoading(false);
             }
         };
 
         fetchAnalytics();
-    }, []);
+    }, [request]);
 
     const handleDownloadReport = async () => {
         try {
+            // Using direct fetch/axios for blob download as useApi wrapper might assume JSON
+            // But to keep it clean, let's try to use the raw token approach for this specific non-JSON action
+            // or just use the same pattern as before but cleaner.
             const token = localStorage.getItem('token');
-            const response = await axios.get('/api/admin/analytics/export', {
-                headers: { Authorization: `Bearer ${token}` },
-                responseType: 'blob'
+            const response = await fetch('/api/admin/analytics/export', {
+                headers: { Authorization: `Bearer ${token}` }
             });
 
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            if (!response.ok) throw new Error('Download failed');
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', `analytics_report_${new Date().toISOString().split('T')[0]}.csv`);
@@ -58,15 +58,36 @@ const Analytics = () => {
 
     if (!data) return null;
 
-    const stats = [
-        { label: 'Total Users', value: data.total_users, icon: Users, color: 'indigo', trend: '+12%', trendUp: true },
-        { label: 'Active Learners', value: data.active_users, icon: Activity, color: 'emerald', trend: '+5%', trendUp: true },
-        { label: 'Courses/Quizzes', value: data.total_quizzes, icon: BookOpen, color: 'purple', trend: 'Stable', trendUp: null },
-        { label: 'Admin Actions', value: data.recent_admin_actions, icon: TrendingUp, color: 'orange', trend: '+18%', trendUp: true },
-    ];
+    // Calculate dynamic trends if possible, otherwise use reasonable logic
+    // For Growth, we can compare last 2 entries in growth_trends if available
+    let growthTrend = '+0%';
+    let isGrowthPositive = true;
 
+    if (data.growth_trends && data.growth_trends.length >= 2) {
+        const last = data.growth_trends[data.growth_trends.length - 1].users;
+        const prev = data.growth_trends[data.growth_trends.length - 2].users;
+        if (prev > 0) {
+            const pct = ((last - prev) / prev) * 100;
+            growthTrend = `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`;
+            isGrowthPositive = pct >= 0;
+        }
+    }
+
+    // Role Distribution Logic
     const roleData = data.role_distribution || {};
     const totalForRoles = Object.values(roleData).reduce((a, b) => a + b, 0);
+
+    // Platform Score: Simple heuristic (Active / Total) * 100
+    const platformScore = data.total_users > 0
+        ? Math.round((data.active_users / data.total_users) * 100)
+        : 0;
+
+    const stats = [
+        { label: 'Total Users', value: data.total_users, icon: Users, color: 'indigo', trend: growthTrend, trendUp: isGrowthPositive },
+        { label: 'Active Learners', value: data.active_users, icon: Activity, color: 'emerald', trend: `${platformScore}% Rate`, trendUp: true },
+        { label: 'Courses/Quizzes', value: data.total_quizzes, icon: BookOpen, color: 'purple', trend: 'Stable', trendUp: null },
+        { label: 'Total Points', value: data.total_points, icon: Award, color: 'orange', trend: 'Global', trendUp: true },
+    ];
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -130,18 +151,20 @@ const Analytics = () => {
                             );
                         })}
                     </div>
+
+                    {/* Key Metrics Summary */}
                     <div className="mt-8 grid grid-cols-3 gap-4 text-center">
                         <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50">
                             <p className="text-xs text-gray-500 mb-1 font-medium">Growth</p>
-                            <p className="text-lg font-bold text-emerald-600">+4.2%</p>
+                            <p className="text-lg font-bold text-emerald-600">{growthTrend}</p>
                         </div>
                         <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50">
-                            <p className="text-xs text-gray-500 mb-1 font-medium">Retention</p>
-                            <p className="text-lg font-bold text-indigo-600">88%</p>
+                            <p className="text-xs text-gray-500 mb-1 font-medium">Engagement</p>
+                            <p className="text-lg font-bold text-indigo-600">{platformScore}%</p>
                         </div>
                         <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50">
                             <p className="text-xs text-gray-500 mb-1 font-medium">Churn</p>
-                            <p className="text-lg font-bold text-rose-600">1.5%</p>
+                            <p className="text-lg font-bold text-rose-600">0%</p> {/* Placeholder until backend tracks churn */}
                         </div>
                     </div>
                 </div>
@@ -150,25 +173,26 @@ const Analytics = () => {
                 <div className="bg-indigo-600 rounded-2xl p-8 text-white relative overflow-hidden shadow-lg">
                     <div className="relative z-10">
                         <h3 className="text-xl font-bold mb-2">Weekly Platform Score</h3>
-                        <p className="text-indigo-100 mb-8 opacity-90">Overall health calculated from user engagement and content completion.</p>
+                        <p className="text-indigo-100 mb-8 opacity-90">Overall health calculated from user engagement.</p>
 
                         <div className="flex items-end gap-2 mb-8">
-                            <span className="text-6xl font-black">92</span>
+                            <span className="text-6xl font-black">{platformScore}</span>
                             <span className="text-2xl font-bold opacity-80 mb-2">/100</span>
                         </div>
 
                         <div className="space-y-4">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-white/20 rounded-lg">
-                                    <Award size={20} />
+                                    <TrendingUp size={20} />
                                 </div>
-                                <span>15 new badges earned today</span>
+                                <span>{data.recent_admin_actions} admin actions this week</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-white/20 rounded-lg">
                                     <Clock size={20} />
                                 </div>
-                                <span>Average session time: 24 mins</span>
+                                {/* TODO: Implement session tracking for real time */}
+                                <span>Avg session time: ~15 mins</span>
                             </div>
                         </div>
 

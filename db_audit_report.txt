@@ -1,0 +1,38 @@
+=== DATABASE AUDIT REPORT ===
+
+USERS (6):
+  - ID: daec4b43-132b-4ea0-b6fb-c413f706b8e6 | Email: admin@enable.com | Role: admin
+    Gamification: {'badges': ['quiz-1'], 'points': 100, 'streak': 0}
+    Settings: {'highContrast': False, 'reduceMotion': False}
+  - ID: 4ae6f6f2-0606-45dc-a566-a9f4598e845b | Email: Chaitan@gmail.com | Role: student
+    Gamification: {'badges': [], 'points': 0, 'streak': 0}
+    Settings: {'highContrast': False, 'reduceMotion': False}
+  - ID: 84767cd1-6bbb-43d6-8dcf-0cac330b1193 | Email: yalamasettychaitanyachowdary@gmail.com | Role: student
+    Gamification: {'badges': [], 'points': 96, 'streak': 0}
+    Settings: {'highContrast': False, 'reduceMotion': False}
+  - ID: 7cd61441-053b-492b-b050-d7fa6b7c7153 | Email: Chaitanya1@gmail.com | Role: student
+    Gamification: {'badges': [], 'points': 0, 'streak': 0}
+    Settings: {'highContrast': False, 'reduceMotion': False}
+  - ID: e51dfbd2-46fb-4e41-8a3d-3e4a5d8ba625 | Email: chaitanya1@gmail.com | Role: student
+    Gamification: {'badges': ['accessibility-fundamentals'], 'points': 100, 'streak': 0}
+    Settings: {'highContrast': False, 'reduceMotion': False}
+  - ID: bba717b7-9cb3-47d8-9a04-29c73fdef5e0 | Email: chaitanya@gmail.com | Role: student
+    Gamification: {'badges': [], 'points': 40, 'streak': 0}
+    Settings: {'highContrast': False, 'reduceMotion': False}
+
+QUIZZES (12):
+  - ID: quiz-1 | Title: Accessibility Fundamentals
+  - ID: quiz-2 | Title: Work Ethics & Professional Conduct
+  - ID: quiz-3 | Title: Introduction to the Disability Sector
+  - ID: quiz-4 | Title: Communication Skills in Care
+  - ID: quiz-5 | Title: Workplace Health & Safety
+  - ID: quiz-6 | Title: Rights and Advocacy
+  - ID: quiz-7 | Title: Cultural Competence & Diversity
+  - ID: quiz-8 | Title: Medication Management Basics
+  - ID: quiz-9 | Title: Mental Health Awareness
+  - ID: quiz-10 | Title: Professional Development & Teamwork
+  - ID: accessibility-fundamentals | Title: Test Quiz
+  - ID: work-ethics | Title: Test Quiz
+
+RESULTS COUNT: 1
+USER PROGRESS COUNT: 1

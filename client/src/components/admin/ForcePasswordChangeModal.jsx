@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Eye, EyeOff, Lock, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import api from '../../services/api.service';
 import PasswordStrengthIndicator from '../common/PasswordStrengthIndicator';
 
 /**
@@ -43,17 +43,10 @@ const ForcePasswordChangeModal = ({ user, onPasswordChanged }) => {
         setLoading(true);
 
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(
-                '/api/auth/change-password',
-                {
-                    currentPassword,
-                    newPassword
-                },
-                {
-                    headers: { Authorization: `Bearer ${token}` }
-                }
-            );
+            const response = await api.post('/auth/change-password', {
+                currentPassword,
+                newPassword
+            });
 
             // Update local storage
             const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -73,6 +66,8 @@ const ForcePasswordChangeModal = ({ user, onPasswordChanged }) => {
             setLoading(false);
         }
     };
+
+
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+
 import { Link } from 'react-router-dom';
 import { Award, Zap, TrendingUp, BookOpen, CheckSquare, ChevronRight, RefreshCw, Trophy } from 'lucide-react';
 import { useTilt } from '../../hooks/useTilt';

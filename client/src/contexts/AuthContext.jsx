@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
 import api from '../services/api.service';
 
 const AuthContext = createContext();
@@ -149,13 +148,10 @@ export const AuthProvider = ({ children }) => {
 
     const logActivity = async (action, details) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.post('/api/admin/audit-log', {
+            await api.post('/admin/audit-log', {
                 action,
                 details,
                 timestamp: new Date().toISOString()
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
         } catch (error) {
             console.error('Failed to log activity:', error);

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccessibility } from '../../contexts/AccessibilityContext';
+import { useApi } from '../../hooks/useApi';
 import { User, Mail, Lock, Save, Camera, Edit2, CheckCircle, XCircle } from 'lucide-react';
-import axios from 'axios';
 
 const Profile = () => {
     const navigate = useNavigate();
+    const { request } = useApi();
     const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || '{}'));
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
@@ -51,15 +52,12 @@ const Profile = () => {
 
     const fetchUserStats = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('/api/progress', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const data = await request('get', '/progress');
             setStats({
-                totalQuizzes: response.data.totalQuizzes || 0,
-                totalPoints: response.data.totalPoints || 0,
-                badges: response.data.badges || 0,
-                completionRate: response.data.completionRate || 0
+                totalQuizzes: data.totalQuizzes || 0,
+                totalPoints: data.totalPoints || 0,
+                badges: data.badges || 0,
+                completionRate: data.completionRate || 0
             });
         } catch (error) {
             console.error('Failed to fetch stats:', error);
@@ -99,13 +97,20 @@ const Profile = () => {
                 accessibilitySettings: { highContrast, reduceMotion, fontSize }
             };
 
-            // Simulate API call (in production, this would be a PATCH to /api/auth/profile)
+            // Real API call
+            await request('put', '/auth/me', {
+                name: formData.name,
+                email: formData.email,
+                settings: updatedUser.accessibilitySettings
+            });
+
             localStorage.setItem('user', JSON.stringify(updatedUser));
             setUser(updatedUser);
             setEditMode(false);
             showMessage('Profile updated successfully!', 'success');
         } catch (error) {
-            showMessage('Failed to update profile.', 'error');
+            console.error('Update failed:', error);
+            showMessage(error.response?.data?.message || 'Failed to update profile.', 'error');
         } finally {
             setLoading(false);
         }
@@ -124,14 +129,17 @@ const Profile = () => {
 
         setLoading(true);
         try {
-            // Simulate API call (in production, this would be a POST to /api/auth/change-password)
-            // await axios.post('/api/auth/change-password', passwordData, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+            await request('post', '/auth/change-password', {
+                currentPassword: passwordData.currentPassword,
+                newPassword: passwordData.newPassword
+            });
 
             setPasswordMode(false);
             setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
             showMessage('Password changed successfully!', 'success');
         } catch (error) {
-            showMessage('Failed to change password.', 'error');
+            console.error('Password change failed:', error);
+            showMessage(error.response?.data?.message || 'Failed to change password.', 'error');
         } finally {
             setLoading(false);
         }
