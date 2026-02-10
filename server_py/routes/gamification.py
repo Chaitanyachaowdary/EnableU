@@ -4,6 +4,7 @@ from models import User, Quiz, Result
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import desc
 from sqlalchemy.orm.attributes import flag_modified
+from datetime import datetime
 
 gamification_bp = Blueprint('gamification', __name__)
 
@@ -266,6 +267,12 @@ def get_user_progress():
                     'totalQuestions': len(quiz.questions),
                     'lastActivity': record.last_activity.isoformat() if record.last_activity else None
                 })
+    
+    # Sort by last activity to show most recent first
+    in_progress_list.sort(key=lambda x: x['lastActivity'] or '', reverse=True)
+    
+    # Limit to 4 most recent items for UI balance
+    in_progress_list = in_progress_list[:4]
     
     # Calculate average score
     if user_results:

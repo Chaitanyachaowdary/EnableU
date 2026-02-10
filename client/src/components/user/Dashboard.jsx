@@ -106,6 +106,7 @@ const Dashboard = () => {
                             <BookOpen className="text-indigo-600" />
                             Continue Learning
                         </h2>
+                        <p className="text-sm text-gray-500 mb-6 -mt-3 ml-7">Resume your most recently accessed modules.</p>
                         <div className="grid md:grid-cols-2 gap-4">
                             {/* In-Progress Items */}
                             {progress?.inProgress && progress.inProgress.length > 0 && (
