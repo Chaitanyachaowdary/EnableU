@@ -1,0 +1,91 @@
+/* =========================================
+   Advanced Accessibility Features
+   ========================================= */
+
+/* Dyslexia-Friendly Mode */
+body.dyslexic-font {
+    font-family: 'Verdana', 'Arial', sans-serif !important;
+    line-height: 1.8 !important;
+    letter-spacing: 0.05em !important;
+    word-spacing: 0.1em !important;
+}
+
+body.dyslexic-font h1,
+body.dyslexic-font h2,
+body.dyslexic-font h3,
+body.dyslexic-font h4,
+body.dyslexic-font h5,
+body.dyslexic-font h6 {
+    letter-spacing: 0.08em !important;
+}
+
+/* Reading Guide Overlay */
+.reading-guide-overlay {
+    position: fixed;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    /* Thicker bar */
+    background: rgba(255, 235, 59, 0.15);
+    /* Yellow highlight */
+    border-top: 2px solid rgba(255, 87, 34, 0.5);
+    border-bottom: 2px solid rgba(255, 87, 34, 0.5);
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+    /* Dim everything else */
+    pointer-events: none;
+    z-index: 9999;
+    transform: translateY(-50%);
+    transition: top 0.05s ease-out;
+    /* Faster for responsiveness */
+    mix-blend-mode: multiply;
+}
+
+/* Enhanced High Contrast Mode (Yellow/Black) */
+html.high-contrast body {
+    background-color: #000000 !important;
+    color: #FFFF00 !important;
+    background-image: none !important;
+}
+
+html.high-contrast * {
+    background-color: transparent !important;
+    color: #FFFF00 !important;
+    border-color: #FFFF00 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
+html.high-contrast .bg-white,
+html.high-contrast .bg-gray-50,
+html.high-contrast .glass-effect {
+    background-color: #000000 !important;
+    border: 2px solid #FFFF00 !important;
+}
+
+/* Invert and tint images/icons to yellow */
+html.high-contrast img,
+html.high-contrast svg {
+    filter: grayscale(100%) brightness(500%) sepia(100%) hue-rotate(50deg) saturate(500%) !important;
+}
+
+html.high-contrast button,
+html.high-contrast input,
+html.high-contrast select,
+html.high-contrast textarea,
+html.high-contrast .card {
+    background-color: #000000 !important;
+    border: 2px solid #FFFF00 !important;
+    color: #FFFF00 !important;
+}
+
+html.high-contrast button:hover,
+html.high-contrast a:hover {
+    background-color: #FFFF00 !important;
+    color: #000000 !important;
+    font-weight: bold;
+}
+
+/* Helper to force solid background if needed */
+html.high-contrast .force-bg-black {
+    background-color: #000000 !important;
+}

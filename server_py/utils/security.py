@@ -10,7 +10,7 @@ def validate_password_strength(password: str) -> Dict[str, any]:
     Validate password strength according to enterprise security standards.
     
     Requirements:
-    - Minimum 12 characters
+    - Minimum 8 characters
     - At least one uppercase letter
     - At least one lowercase letter
     - At least one number
@@ -24,8 +24,8 @@ def validate_password_strength(password: str) -> Dict[str, any]:
     """
     errors = []
     
-    if len(password) < 12:
-        errors.append("Password must be at least 12 characters long")
+    if len(password) < 8:
+        errors.append("Password must be at least 8 characters long")
     
     if not re.search(r'[A-Z]', password):
         errors.append("Password must contain at least one uppercase letter")
@@ -54,9 +54,9 @@ def get_password_strength_score(password: str) -> Dict[str, any]:
     score = 0
     
     # Length score
-    if len(password) >= 12:
+    if len(password) >= 8:
         score += 1
-    if len(password) >= 16:
+    if len(password) >= 12:
         score += 1
     
     # Complexity score

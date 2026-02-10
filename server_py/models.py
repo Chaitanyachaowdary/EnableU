@@ -73,6 +73,7 @@ class UserProgress(db.Model):
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=False)
     quiz_id = db.Column(db.String(50), db.ForeignKey('quizzes.id'), nullable=False)
     status = db.Column(db.String(20), default='started') # started, in-progress, completed
+    current_question_index = db.Column(db.Integer, default=0)
     started_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_activity = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

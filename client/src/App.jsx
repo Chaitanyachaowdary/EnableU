@@ -8,6 +8,9 @@ import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
 
+import ResetPassword from './components/auth/ResetPassword';
+import ChangePassword from './components/auth/ChangePassword';
+
 // User Components
 import Dashboard from './components/user/Dashboard';
 import Profile from './components/user/Profile';
@@ -58,13 +61,22 @@ const AdminRoute = ({ children }) => {
   return children;
 };
 
+import ReadingGuide from './components/common/ReadingGuide';
+import AccessibilityMenu from './components/common/AccessibilityMenu';
+
+// ...
+
 function App() {
   return (
     <AccessibilityProvider>
+      <ReadingGuide />
+      <AccessibilityMenu />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/change-password" element={<ChangePassword />} />
 
         <Route element={<Layout />}>
           <Route

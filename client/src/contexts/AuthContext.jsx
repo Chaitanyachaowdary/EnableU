@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import api from '../services/api.service';
 
 const AuthContext = createContext();
 
@@ -30,16 +31,29 @@ export const AuthProvider = ({ children }) => {
         const token = localStorage.getItem('token');
         const loginTime = localStorage.getItem('loginTime');
 
-        if (storedUser && token && loginTime) {
-            const parsedUser = JSON.parse(storedUser);
-            const timeElapsed = Date.now() - parseInt(loginTime);
-            const timeout = SESSION_TIMEOUT[parsedUser.role] || SESSION_TIMEOUT.student;
+        if (storedUser && token) {
+            try {
+                const parsedUser = JSON.parse(storedUser);
+                if (parsedUser && parsedUser.role) {
+                    const loginTime = localStorage.getItem('loginTime');
+                    if (loginTime) {
+                        const timeElapsed = Date.now() - parseInt(loginTime);
+                        const timeout = SESSION_TIMEOUT[parsedUser.role] || SESSION_TIMEOUT.student;
 
-            if (timeElapsed < timeout) {
-                setUser(parsedUser);
-            } else {
-                // Session expired
-                logout('Session expired. Please login again.');
+                        if (timeElapsed < timeout) {
+                            setUser(parsedUser);
+                        } else {
+                            logout('Session expired. Please login again.');
+                        }
+                    } else {
+                        // Migration path for users without loginTime
+                        setUser(parsedUser);
+                        localStorage.setItem('loginTime', Date.now().toString());
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to parse stored user', e);
+                logout();
             }
         }
         setLoading(false);
@@ -77,9 +91,11 @@ export const AuthProvider = ({ children }) => {
         };
     }, [user]);
 
+
     const login = async (email, password) => {
         try {
-            const response = await axios.post('/api/auth/login', { email, password });
+            const response = await api.post('/auth/login', { email, password });
+            // api.service.js interceptor returns response, so we access .data
             const { token, user: userData } = response.data;
 
             localStorage.setItem('token', token);
@@ -95,6 +111,7 @@ export const AuthProvider = ({ children }) => {
 
             return { success: true, user: userData };
         } catch (error) {
+            console.error('Login error:', error);
             return {
                 success: false,
                 error: error.response?.data?.message || 'Login failed'

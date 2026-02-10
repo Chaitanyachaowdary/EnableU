@@ -2,91 +2,102 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
     Search, Download, Users, Edit, Square, CheckSquare,
-    ChevronUp, ChevronDown, UserPlus, X, Mail, Lock, User as UserIcon
+    ChevronUp, ChevronDown, UserPlus, X, Mail, Lock, User as UserIcon, Shield, ShieldCheck
 } from 'lucide-react';
 import Toast from '../../common/Toast';
 import ConfirmDialog from '../../common/ConfirmDialog';
 import Pagination from '../../common/Pagination';
+import { useApi } from '../../../hooks/useApi';
+import { useAccessibility } from '../../../contexts/AccessibilityContext';
+import { useTilt } from '../../../hooks/useTilt';
+import { SkeletonLeaderboard } from '../../common/SkeletonLoaders';
 
 const UserManagement = () => {
+    const { request, loading, error } = useApi();
     const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const { request: createReq, loading: createLoading } = useApi();
+    const { request: updateReq } = useApi();
+    const { reduceMotion, highContrast } = useAccessibility();
     const [toast, setToast] = useState(null);
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, type: 'danger' });
+    const { ref: containerRef, style: containerStyle, onMouseMove, onMouseLeave } = useTilt(2);
 
-    // Search and filter
+    // State variables for filtering, sorting, and pagination
+    const [selectedUsers, setSelectedUsers] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState('all');
-    const [sortBy, setSortBy] = useState('email');
-    const [sortOrder, setSortOrder] = useState('asc');
-
-    // Pagination
+    const [sortBy, setSortBy] = useState('created_at');
+    const [sortOrder, setSortOrder] = useState('desc');
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
-
-    // Bulk operations
-    const [selectedUsers, setSelectedUsers] = useState([]);
+    const [itemsPerPage, setItemsPerPage] = useState(8);
     const [bulkRole, setBulkRole] = useState('student');
 
-    // Create User Modal
+    // Create & Edit State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [newUserForm, setNewUserForm] = useState({
-        email: '',
-        name: '',
-        password: '',
-        role: 'student'
-    });
-    const [createLoading, setCreateLoading] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [newUserForm, setNewUserForm] = useState({ email: '', name: '', password: '', role: 'student' });
+    const [editUserForm, setEditUserForm] = useState({ id: '', email: '', name: '', password: '' });
 
     useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const data = await request('get', '/admin/users');
+                setUsers(data);
+            } catch (err) {
+                console.error('Failed to load users', err);
+            }
+        };
         fetchUsers();
-    }, []);
-
-    const fetchUsers = async () => {
-        setLoading(true);
-        try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('/api/admin/users', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setUsers(response.data);
-        } catch (error) {
-            console.error('Error fetching users:', error);
-            setToast({ message: 'Failed to fetch users', type: 'error' });
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [request]);
 
     const handleCreateUser = async (e) => {
         e.preventDefault();
-        setCreateLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post('/api/admin/users', newUserForm, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setUsers([response.data.user, ...users]);
+            const data = await createReq('post', '/admin/users', newUserForm);
+            setUsers([data.user, ...users]);
             setToast({ message: 'User created successfully', type: 'success' });
             setIsCreateModalOpen(false);
             setNewUserForm({ email: '', name: '', password: '', role: 'student' });
         } catch (error) {
-            console.error('Error creating user:', error);
-            setToast({
-                message: error.response?.data?.message || 'Failed to create user',
-                type: 'error'
-            });
-        } finally {
-            setCreateLoading(false);
+            setToast({ message: error.response?.data?.message || 'Failed to create user', type: 'error' });
+        }
+    };
+
+    const openEditModal = (user) => {
+        setEditUserForm({
+            id: user.id,
+            email: user.email,
+            name: user.name || '',
+            password: '' // Don't pre-fill password
+        });
+        setIsEditModalOpen(true);
+    };
+
+    const handleUpdateUser = async (e) => {
+        e.preventDefault();
+        try {
+            const payload = {
+                email: editUserForm.email,
+                name: editUserForm.name
+            };
+            if (editUserForm.password) {
+                payload.password = editUserForm.password;
+            }
+
+            const response = await updateReq('put', `/admin/users/${editUserForm.id}`, payload);
+
+            setUsers(users.map(u => u.id === editUserForm.id ? { ...u, ...response.user } : u));
+            setToast({ message: 'User updated successfully', type: 'success' });
+            setIsEditModalOpen(false);
+        } catch (error) {
+            console.error('Error updating user:', error);
+            setToast({ message: error.response?.data?.message || 'Failed to update user', type: 'error' });
         }
     };
 
     const handleRoleChange = async (userId, newRole) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.put(`/api/admin/users/${userId}/role`, { role: newRole }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await updateReq('put', `/admin/users/${userId}/role`, { role: newRole });
             setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
             setToast({ message: `User role updated to ${newRole}`, type: 'success' });
         } catch (error) {
@@ -108,12 +119,9 @@ const UserManagement = () => {
             type: 'warning',
             onConfirm: async () => {
                 try {
-                    const token = localStorage.getItem('token');
                     await Promise.all(
                         selectedUsers.map(userId =>
-                            axios.put(`/api/admin/users/${userId}/role`, { role: bulkRole }, {
-                                headers: { Authorization: `Bearer ${token}` }
-                            })
+                            updateReq('put', `/admin/users/${userId}/role`, { role: bulkRole })
                         )
                     );
                     setUsers(users.map(u =>
@@ -200,15 +208,17 @@ const UserManagement = () => {
     };
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-            </div>
-        );
+        return <SkeletonLeaderboard />;
     }
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <div
+            ref={containerRef}
+            style={containerStyle}
+            onMouseMove={onMouseMove}
+            onMouseLeave={onMouseLeave}
+            className="glass-effect rounded-[2.5rem] shadow-2xl border-white/20 p-8 md:p-12 preserve-3d animate-fade-in-3d"
+        >
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             <ConfirmDialog
                 isOpen={confirmDialog.isOpen}
@@ -219,10 +229,15 @@ const UserManagement = () => {
                 type={confirmDialog.type}
             />
 
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">User Management</h2>
-                    <p className="text-sm text-gray-500">Manage user roles and view performance stats.</p>
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-10 depth-layer-2 animate-slide-up-fade opacity-100">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-2xl bg-indigo-600 text-white shadow-lg">
+                        <Users size={32} />
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black text-gray-900 tracking-tight">User Management</h2>
+                        <p className="text-gray-500 font-medium tracking-tight">Manage user access and permissions at scale.</p>
+                    </div>
                 </div>
 
                 <div className="flex flex-wrap gap-3 w-full lg:w-auto">
@@ -388,7 +403,10 @@ const UserManagement = () => {
                                     {u.gamification?.badges?.length || 0}
                                 </td>
                                 <td className="px-6 py-4">
-                                    <button className="p-2 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                                    <button
+                                        onClick={() => openEditModal(u)}
+                                        className="p-2 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                                    >
                                         <Edit size={18} />
                                     </button>
                                 </td>
@@ -473,6 +491,31 @@ const UserManagement = () => {
                                         placeholder="••••••••"
                                     />
                                 </div>
+                                <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-600">
+                                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Password Requirements</p>
+                                    <div className="grid grid-cols-1 gap-1 text-xs">
+                                        <div className={`flex items-center gap-1.5 ${newUserForm.password.length >= 8 ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                            {newUserForm.password.length >= 8 ? <ShieldCheck size={14} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current" />}
+                                            <span>8+ Characters</span>
+                                        </div>
+                                        <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(newUserForm.password) ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                            {/[A-Z]/.test(newUserForm.password) ? <ShieldCheck size={14} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current" />}
+                                            <span>Uppercase Letter</span>
+                                        </div>
+                                        <div className={`flex items-center gap-1.5 ${/[a-z]/.test(newUserForm.password) ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                            {/[a-z]/.test(newUserForm.password) ? <ShieldCheck size={14} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current" />}
+                                            <span>Lowercase Letter</span>
+                                        </div>
+                                        <div className={`flex items-center gap-1.5 ${/[0-9]/.test(newUserForm.password) ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                            {/[0-9]/.test(newUserForm.password) ? <ShieldCheck size={14} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current" />}
+                                            <span>Number</span>
+                                        </div>
+                                        <div className={`flex items-center gap-1.5 ${/[!@#$%^&*(),.?":{}|<>\-_+=/[\]';]/.test(newUserForm.password) ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                            {/[!@#$%^&*(),.?":{}|<>\-_+=/[\]';]/.test(newUserForm.password) ? <ShieldCheck size={14} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current" />}
+                                            <span>Special Character</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div>
@@ -502,6 +545,110 @@ const UserManagement = () => {
                                     className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-all shadow-md active:scale-95 disabled:opacity-50"
                                 >
                                     {createLoading ? 'Creating...' : 'Create User'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit User Modal */}
+            {isEditModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-700">
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Edit User</h3>
+                            <button
+                                onClick={() => setIsEditModalOpen(false)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleUpdateUser} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
+                                <div className="relative">
+                                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                    <input
+                                        type="text"
+                                        required
+                                        value={editUserForm.name}
+                                        onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
+                                <div className="relative">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                    <input
+                                        type="email"
+                                        required
+                                        value={editUserForm.email}
+                                        onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Password (Optional)</label>
+                                <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                    <input
+                                        type="password"
+                                        value={editUserForm.password}
+                                        onChange={(e) => setEditUserForm({ ...editUserForm, password: e.target.value })}
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="Leave blank to keep current"
+                                    />
+                                </div>
+                                {editUserForm.password && (
+                                    <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-600">
+                                        <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Password Requirements</p>
+                                        <div className="grid grid-cols-1 gap-1 text-xs">
+                                            <div className={`flex items-center gap-1.5 ${editUserForm.password.length >= 8 ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                                {editUserForm.password.length >= 8 ? <ShieldCheck size={14} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current" />}
+                                                <span>8+ Characters</span>
+                                            </div>
+                                            <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(editUserForm.password) ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                                {/[A-Z]/.test(editUserForm.password) ? <ShieldCheck size={14} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current" />}
+                                                <span>Uppercase Letter</span>
+                                            </div>
+                                            <div className={`flex items-center gap-1.5 ${/[a-z]/.test(editUserForm.password) ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                                {/[a-z]/.test(editUserForm.password) ? <ShieldCheck size={14} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current" />}
+                                                <span>Lowercase Letter</span>
+                                            </div>
+                                            <div className={`flex items-center gap-1.5 ${/[0-9]/.test(editUserForm.password) ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                                {/[0-9]/.test(editUserForm.password) ? <ShieldCheck size={14} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current" />}
+                                                <span>Number</span>
+                                            </div>
+                                            <div className={`flex items-center gap-1.5 ${/[!@#$%^&*(),.?":{}|<>\-_+=/[\]';]/.test(editUserForm.password) ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                                {/[!@#$%^&*(),.?":{}|<>\-_+=/[\]';]/.test(editUserForm.password) ? <ShieldCheck size={14} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current" />}
+                                                <span>Special Character</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="pt-4 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsEditModalOpen(false)}
+                                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-all shadow-md active:scale-95"
+                                >
+                                    Update User
                                 </button>
                             </div>
                         </form>

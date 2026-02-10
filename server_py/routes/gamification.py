@@ -3,6 +3,7 @@ from extensions import db
 from models import User, Quiz, Result
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import desc
+from sqlalchemy.orm.attributes import flag_modified
 
 gamification_bp = Blueprint('gamification', __name__)
 
@@ -94,6 +95,9 @@ def submit_quiz(quiz_id):
     # Award badge if 100% correct
     if correct_count == total_questions and quiz_id not in user.gamification.get('badges', []):
         user.gamification.setdefault('badges', []).append(quiz_id)
+        
+    # CRITICAL: Mark field as modified so SQLAlchemy persists the change
+    flag_modified(user, 'gamification')
     
     # Update or Create Progress Record
     from models import UserProgress
@@ -154,6 +158,7 @@ def start_quiz_progress():
     current_user_id = get_jwt_identity()
     data = request.get_json()
     quiz_id = data.get('quizId')
+    current_index = data.get('currentQuestionIndex', 0)
     
     if not quiz_id:
         return jsonify({'error': 'Quiz ID required'}), 400
@@ -162,20 +167,25 @@ def start_quiz_progress():
     progress = UserProgress.query.filter_by(user_id=current_user_id, quiz_id=quiz_id).first()
     
     if not progress:
-        progress = UserProgress(user_id=current_user_id, quiz_id=quiz_id, status='started')
+        progress = UserProgress(
+            user_id=current_user_id, 
+            quiz_id=quiz_id, 
+            status='started',
+            current_question_index=current_index
+        )
         db.session.add(progress)
         db.session.commit()
     elif progress.status == 'completed':
-        # If they are retaking, we could either leave it completed or reset to in-progress
-        # For now, let's just update last_activity
         progress.last_activity = datetime.utcnow()
+        progress.current_question_index = current_index
         db.session.commit()
     else:
         progress.status = 'in-progress'
+        progress.current_question_index = current_index
         progress.last_activity = datetime.utcnow()
         db.session.commit()
         
-    return jsonify({'message': 'Progress updated', 'status': progress.status})
+    return jsonify({'message': 'Progress updated', 'status': progress.status, 'currentIndex': progress.current_question_index})
 
 @gamification_bp.route('/leaderboard', methods=['GET'])
 @jwt_required()
@@ -183,10 +193,21 @@ def get_leaderboard():
     users = User.query.all()
     leaderboard = []
     for user in users:
+        from uuid import UUID
+        gamification = user.gamification or {}
+        points = gamification.get('points', 0)
+        
+        # Robustness: If points are 0, check results table just in case
+        if points == 0:
+            from sqlalchemy import func
+            res_sum = db.session.query(func.sum(Result.score)).filter(Result.user_id == user.id).scalar() or 0
+            points = int(res_sum)
+            
         leaderboard.append({
             'email': user.email,
-            'points': user.gamification.get('points', 0),
-            'badges': len(user.gamification.get('badges', []))
+            'name': user.name,
+            'points': points if points > 0 else gamification.get('points', 0),
+            'badges': len(gamification.get('badges', []))
         })
     
     # Sort by points descending
@@ -199,7 +220,13 @@ def get_leaderboard():
 @jwt_required()
 def get_user_progress():
     """Get detailed progress data for the current user"""
-    current_user_id = get_jwt_identity()
+    from uuid import UUID
+    identity = get_jwt_identity()
+    try:
+        current_user_id = UUID(str(identity)) if not isinstance(identity, UUID) else identity
+    except:
+        current_user_id = identity
+
     user = User.query.get(current_user_id)
     
     if not user:
@@ -212,6 +239,13 @@ def get_user_progress():
     # Get user's results
     user_results = Result.query.filter_by(user_id=current_user_id).all()
     completed_quiz_ids = set(result.quiz_id for result in user_results)
+    
+    # Sync: If user has badges in JSON but no result record, consider it completed for percentage
+    gamification = user.gamification or {}
+    badge_ids = gamification.get('badges', [])
+    for bid in badge_ids:
+        completed_quiz_ids.add(bid)
+        
     completed_count = len(completed_quiz_ids)
     
     # Get "In Progress" quizzes
@@ -221,12 +255,15 @@ def get_user_progress():
     
     for record in progress_records:
         if record.status in ['started', 'in-progress']:
+            # Verify quiz exists
             quiz = Quiz.query.get(record.quiz_id)
             if quiz:
                 in_progress_list.append({
                     'quizId': quiz.id,
                     'quizTitle': quiz.title,
                     'status': record.status,
+                    'currentIndex': record.current_question_index,
+                    'totalQuestions': len(quiz.questions),
                     'lastActivity': record.last_activity.isoformat() if record.last_activity else None
                 })
     
@@ -256,6 +293,32 @@ def get_user_progress():
                 'timeSpent': 180  # Placeholder
             })
     
+    # Resolve Badges
+    gamification = user.gamification or {}
+    badge_ids = gamification.get('badges', [])
+    earned_badges = []
+    for bid in badge_ids:
+        # Assuming badge ID corresponds to Quiz ID for now
+        quiz = Quiz.query.get(bid)
+        if quiz:
+            earned_badges.append({
+                'id': bid,
+                'title': f"{quiz.title} Master", # Creative name
+                'icon': 'award'
+            })
+        else:
+             earned_badges.append({
+                'id': bid,
+                'title': f"Badge {bid}",
+                'icon': 'star'
+            })
+
+
+    # Calculate total points (Robustly: Sum of all results)
+    from sqlalchemy import func
+    total_points_sum = db.session.query(func.sum(Result.score)).filter(Result.user_id == current_user_id).scalar() or 0
+    total_points = int(total_points_sum)
+    
     # Completion percentage
     completion_percentage = (completed_count / total_quizzes * 100) if total_quizzes > 0 else 0
     
@@ -265,9 +328,10 @@ def get_user_progress():
         'completionPercentage': round(completion_percentage, 1),
         'averageScore': round(avg_score, 1),
         'totalTimeSpent': total_time_spent,
-        'totalPoints': user.gamification.get('points', 0),
-        'totalBadges': len(user.gamification.get('badges', [])),
-        'level': user.gamification.get('level', 1),
+        'totalPoints': total_points if total_points > 0 else gamification.get('points', 0),
+        'totalBadges': len(badge_ids),
+        'earnedBadges': earned_badges, 
+        'level': gamification.get('level', 1),
         'recentActivity': recent_activity,
         'inProgress': in_progress_list
     })

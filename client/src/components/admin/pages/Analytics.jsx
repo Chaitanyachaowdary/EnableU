@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Users, BookOpen, Activity, TrendingUp, Award, Clock, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import Toast from '../../common/Toast';
+import StatsCard from '../../common/StatsCard';
+import SkeletonStatsGrid from '../../common/SkeletonStatsGrid';
 
 const Analytics = () => {
     const [data, setData] = useState(null);
@@ -27,12 +29,31 @@ const Analytics = () => {
         fetchAnalytics();
     }, []);
 
+    const handleDownloadReport = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get('/api/admin/analytics/export', {
+                headers: { Authorization: `Bearer ${token}` },
+                responseType: 'blob'
+            });
+
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `analytics_report_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+
+            setToast({ type: 'success', message: 'Report downloaded successfully' });
+        } catch (error) {
+            console.error('Download failed', error);
+            setToast({ type: 'error', message: 'Failed to download report' });
+        }
+    };
+
     if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-            </div>
-        );
+        return <SkeletonStatsGrid count={4} />;
     }
 
     if (!data) return null;
@@ -60,21 +81,22 @@ const Analytics = () => {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {stats.map((stat, idx) => (
-                    <div key={idx} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className={`p-3 rounded-xl bg-${stat.color}-50 dark:bg-${stat.color}-900/20 text-${stat.color}-600 dark:text-${stat.color}-400`}>
-                                <stat.icon size={24} />
-                            </div>
-                            {stat.trendUp !== null && (
-                                <div className={`flex items-center gap-1 text-sm font-medium ${stat.trendUp ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <StatsCard
+                        key={idx}
+                        icon={stat.icon}
+                        label={stat.label}
+                        value={stat.value}
+                        colorClass={stat.color}
+                        tiltStrength={3}
+                        subValue={
+                            stat.trendUp !== null && (
+                                <span className={`flex items-center gap-1 ${stat.trendUp ? 'text-emerald-600' : 'text-rose-600'}`}>
                                     {stat.trend}
-                                    {stat.trendUp ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                                </div>
-                            )}
-                        </div>
-                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{stat.label}</h3>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stat.value}</p>
-                    </div>
+                                    {stat.trendUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                                </span>
+                            )
+                        }
+                    />
                 ))}
             </div>
 
@@ -150,7 +172,10 @@ const Analytics = () => {
                             </div>
                         </div>
 
-                        <button className="mt-8 w-full bg-white text-indigo-600 font-bold py-3 rounded-xl hover:bg-indigo-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-white">
+                        <button
+                            onClick={handleDownloadReport}
+                            className="mt-8 w-full bg-white text-indigo-600 font-bold py-3 rounded-xl hover:bg-indigo-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-white"
+                        >
                             Download Full Report
                         </button>
                     </div>

@@ -13,8 +13,10 @@ const QuizManagement = () => {
     const [toast, setToast] = useState(null);
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, type: 'danger' });
     const [showQuizForm, setShowQuizForm] = useState(false);
+    const [isEditMode, setIsEditMode] = useState(false); // New state for edit mode
 
     const [quizForm, setQuizForm] = useState({
+        id: '', // Added id to state
         title: '',
         description: '',
         time_limit: 300,
@@ -75,7 +77,24 @@ const QuizManagement = () => {
         });
     };
 
-    const handleCreateQuiz = async () => {
+    const handleEditQuiz = (quiz) => {
+        setQuizForm({
+            id: quiz.id,
+            title: quiz.title,
+            description: quiz.description,
+            time_limit: quiz.timeLimit || quiz.time_limit,
+            points_reward: quiz.points_reward,
+            questions: quiz.questions.map(q => ({
+                text: q.text,
+                options: q.options || [],
+                explanation: q.explanation || ''
+            }))
+        });
+        setIsEditMode(true);
+        setShowQuizForm(true);
+    };
+
+    const handleSaveQuiz = async () => {
         // Validation logic
         if (!quizForm.title || !quizForm.description) {
             setToast({ message: 'Title and description are required', type: 'error' });
@@ -84,21 +103,27 @@ const QuizManagement = () => {
 
         try {
             const token = localStorage.getItem('token');
-            await axios.post('/api/admin/quizzes', quizForm, {
+            const url = isEditMode ? `/api/admin/quizzes/${quizForm.id}` : '/api/admin/quizzes';
+            const method = isEditMode ? 'put' : 'post';
+
+            await axios[method](url, quizForm, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setToast({ message: 'Quiz created successfully', type: 'success' });
+
+            setToast({ message: `Quiz ${isEditMode ? 'updated' : 'created'} successfully`, type: 'success' });
             setShowQuizForm(false);
             resetForm();
             fetchQuizzes();
         } catch (error) {
-            console.error('Error creating quiz:', error);
-            setToast({ message: 'Failed to create quiz', type: 'error' });
+            console.error(`Error ${isEditMode ? 'updating' : 'creating'} quiz:`, error);
+            setToast({ message: `Failed to ${isEditMode ? 'update' : 'create'} quiz`, type: 'error' });
         }
     };
 
     const resetForm = () => {
+        setIsEditMode(false);
         setQuizForm({
+            id: '',
             title: '',
             description: '',
             time_limit: 300,
@@ -182,7 +207,7 @@ const QuizManagement = () => {
             {showQuizForm && (
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-indigo-100 dark:border-indigo-900/30 overflow-hidden animate-slide-up">
                     <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-indigo-50/30 dark:bg-indigo-900/10">
-                        <h3 className="font-bold text-gray-900 dark:text-white">Create New Module</h3>
+                        <h3 className="font-bold text-gray-900 dark:text-white">{isEditMode ? 'Edit Module' : 'Create New Module'}</h3>
                         <button onClick={() => setShowQuizForm(false)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors">
                             <X size={20} />
                         </button>
@@ -289,7 +314,7 @@ const QuizManagement = () => {
                     </div>
                     <div className="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3 bg-gray-50/30 dark:bg-gray-900/10">
                         <button onClick={() => setShowQuizForm(false)} className="px-6 py-2 font-semibold text-gray-600 hover:text-gray-900">Cancel</button>
-                        <button onClick={handleCreateQuiz} className="px-8 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-sm transition-all">Save Module</button>
+                        <button onClick={handleSaveQuiz} className="px-8 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-sm transition-all">{isEditMode ? 'Update' : 'Save'} Module</button>
                     </div>
                 </div>
             )}
@@ -302,7 +327,7 @@ const QuizManagement = () => {
                                 <BookOpen size={24} />
                             </div>
                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button className="p-2 text-gray-400 hover:text-indigo-600"><Edit size={16} /></button>
+                                <button onClick={() => handleEditQuiz(quiz)} className="p-2 text-gray-400 hover:text-indigo-600"><Edit size={16} /></button>
                                 <button onClick={() => handleDeleteQuiz(quiz.id, quiz.title)} className="p-2 text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
                             </div>
                         </div>

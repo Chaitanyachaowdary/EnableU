@@ -4,6 +4,7 @@ from models import User, Quiz, AuditLog
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from functools import wraps
 from datetime import datetime
+from utils.security import validate_password_strength
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -88,6 +89,14 @@ def create_user():
 
     if role not in ['student', 'teacher', 'admin']:
         return jsonify({'message': 'Invalid role'}), 400
+
+    # Validate password strength
+    validation = validate_password_strength(password)
+    if not validation['valid']:
+        return jsonify({
+            'message': 'Password does not meet security requirements',
+            'errors': validation['errors']
+        }), 400
 
     from werkzeug.security import generate_password_hash
     hashed_password = generate_password_hash(password)
@@ -271,3 +280,107 @@ def get_analytics():
         'role_distribution': {role: count for role, count in role_distribution},
         'recent_admin_actions': recent_admin_actions
     })
+
+@admin_bp.route('/users/<user_id>', methods=['PUT'])
+@admin_required
+def update_user_details(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+        
+    data = request.get_json()
+    
+    if data.get('name'):
+        user.name = data['name']
+    if data.get('email'):
+        # Check if email is taken by another user
+        existing = User.query.filter_by(email=data['email']).first()
+        if existing and str(existing.id) != str(user_id):
+            return jsonify({'message': 'Email already in use'}), 400
+        user.email = data['email']
+        
+    # Optional: Update password if provided
+    if data.get('password'):
+        # Validate password strength
+        validation = validate_password_strength(data['password'])
+        if not validation['valid']:
+            return jsonify({
+                'message': 'Password does not meet security requirements',
+                'errors': validation['errors']
+            }), 400
+            
+        from werkzeug.security import generate_password_hash
+        user.password_hash = generate_password_hash(data['password'])
+        
+    db.session.commit()
+    
+    log_admin_activity('UPDATE_USER', f'Updated details for user {user.email}')
+    
+    return jsonify({
+        'message': 'User updated successfully',
+        'user': {
+            'id': str(user.id),
+            'email': user.email,
+            'name': user.name,
+            'role': user.role
+        }
+    })
+
+@admin_bp.route('/quizzes/<quiz_id>', methods=['PUT'])
+@admin_required
+def update_quiz(quiz_id):
+    quiz = Quiz.query.get(quiz_id)
+    if not quiz:
+        return jsonify({'message': 'Quiz not found'}), 404
+        
+    data = request.get_json()
+    
+    if data.get('title'):
+        quiz.title = data['title']
+    if data.get('description') is not None:
+        quiz.description = data['description']
+    if data.get('time_limit'):
+        quiz.time_limit = data['time_limit']
+    if data.get('points_reward'):
+        quiz.points_reward = data['points_reward']
+    if data.get('questions'):
+        quiz.questions = data['questions']
+        
+    db.session.commit()
+    
+    log_admin_activity('UPDATE_QUIZ', f'Updated quiz "{quiz.title}"')
+    
+    return jsonify({'message': 'Quiz updated successfully'})
+
+@admin_bp.route('/analytics/export', methods=['GET'])
+@admin_required
+def export_analytics():
+    """Export analytics data as CSV"""
+    import csv
+    from io import StringIO
+    from flask import Response
+    
+    users = User.query.all()
+    
+    # Create CSV in memory
+    si = StringIO()
+    cw = csv.writer(si)
+    cw.writerow(['User ID', 'Name', 'Email', 'Role', 'Points', 'Badges', 'Joined'])
+    
+    for u in users:
+        cw.writerow([
+            u.id, 
+            u.name, 
+            u.email, 
+            u.role, 
+            u.gamification.get('points', 0) if u.gamification else 0,
+            len(u.gamification.get('badges', [])) if u.gamification else 0,
+            u.created_at.isoformat() if u.created_at else ''
+        ])
+        
+    output = si.getvalue()
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=enableu_export.csv"}
+    )

@@ -21,6 +21,14 @@ def register():
     if User.query.filter_by(email=email).first():
         return jsonify({'message': 'Email already exists'}), 400
 
+    # Validate password strength
+    validation = validate_password_strength(password)
+    if not validation['valid']:
+        return jsonify({
+            'message': 'Password does not meet security requirements',
+            'errors': validation['errors']
+        }), 400
+
     hashed_password = generate_password_hash(password)
     name = data.get('name')
     new_user = User(email=email, name=name, password_hash=hashed_password)
@@ -126,6 +134,14 @@ def reset_password():
     
     if not user or not user.reset_token_expires or user.reset_token_expires < datetime.datetime.utcnow():
         return jsonify({'message': 'Invalid or expired token'}), 400
+        
+    # Validate password strength
+    validation = validate_password_strength(new_password)
+    if not validation['valid']:
+        return jsonify({
+            'message': 'Password does not meet security requirements',
+            'errors': validation['errors']
+        }), 400
         
     user.password_hash = generate_password_hash(new_password)
     user.reset_token = None
