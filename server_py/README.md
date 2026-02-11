@@ -1,4 +1,4 @@
-# EnableU - Python Backend (Flask)
+# EnableU - Core Backend (Python/Flask)
 
 The primary data and gamification engine for the EnableU platform. This server handles user authentication, persistent quiz progress, leaderboard calculations, and administrative data management.
 

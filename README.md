@@ -41,7 +41,7 @@ graph TD
         DB[(PostgreSQL DB)]
     end
 
-    C -->|API Proxy (Port 5001)| SP
+    C -- "API Proxy (Port 5001)" --> SP
     SP -->|SQLAlchemy| DB
 ```
 
