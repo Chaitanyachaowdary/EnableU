@@ -76,7 +76,9 @@ src/
 ---
 
 ## 🔌 API Interaction
-The frontend acts as a consumer of the `server_py` (Flask) and `server` (Node) backends. The API base path is configured via the Vite proxy in `vite.config.js` to point to `http://localhost:5001` (Python) and `http://localhost:5000` (Node).
+The frontend acts as a consumer of the **Python Flask** backend (`server_py`). The API base path is configured via the Vite proxy in `vite.config.js` to point to `http://127.0.0.1:5001`.
+
+> The Node.js backend (port 5000) is currently not used by the main application flow.
 
 ---
 **EnableU Frontend - Designed for Everyone**

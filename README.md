@@ -26,7 +26,9 @@
 
 ## 🏗️ Architecture Overview
 
-EnableU utilizes a modern split-backend architecture to balance robustness with high-performance learning modules.
+EnableU utilizes a modern architecture centered around a robust **Python Flask** backend for core services, with a Node.js service available for specialized tasks.
+
+For a deep dive into the system design, please see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ```mermaid
 graph TD
@@ -34,20 +36,18 @@ graph TD
         C[React + Vite Admin/User UI]
     end
     
-    subgraph Multi-Backend
-        SP[Python Flask - Primary Data & Gamification]
-        SN[Node.js Express - Legacy/Specific Services]
+    subgraph Backend
+        SP[Python Flask - Core API & Gamification]
+        DB[(PostgreSQL DB)]
     end
 
-    C -->|API Proxy| SP
-    C -->|API Proxy| SN
-    SP <-->|Shared Auth| SN
-    SP -->|PostgreSQL| DB[(PostgreSQL DB)]
+    C -->|API Proxy (Port 5001)| SP
+    SP -->|SQLAlchemy| DB
 ```
 
 ---
 
-## 🚀 Quick Start (Unified Setup)
+## 🚀 Quick Start
 
 ### 1. Repository Setup
 ```bash
@@ -55,12 +55,12 @@ git clone <repository-url>
 cd enableu
 ```
 
-### 2. Primary Backend (Python/Flask)
-The core logic resides in `server_py`.
+### 2. Backend (Python/Flask)
+The core application logic resides here.
 ```bash
 cd server_py
 pip install -r requirements.txt
-# Configure .env based on .env.example
+# Ensure .env is configured (see server_py/README.md)
 python app.py
 ```
 *Runs on: `http://localhost:5001`*
@@ -73,6 +73,8 @@ npm install
 npm run dev
 ```
 *Runs on: `http://localhost:5173`*
+
+> **Note**: The Node.js backend (`server`) is available on port 5000 as a secondary service but is not required for the core application flow.
 
 ---
 

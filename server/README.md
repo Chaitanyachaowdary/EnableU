@@ -1,6 +1,8 @@
 # EnableU - Node.js Backend (Express)
 
-A lightweight Express-based service layer for the EnableU platform. This module provides specialized API endpoints and handles JSON-based persistence for legacy features.
+> **Note**: This service is currently **secondary** to the Python Flask backend. It is preserved for specific microservices or legacy feature support.
+
+A lightweight Express-based service layer for the EnableU platform.
 
 ## 🛠️ Tech Stack ("Pin to Pin")
 
