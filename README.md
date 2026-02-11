@@ -78,13 +78,18 @@ npm run dev
 
 ---
 
-## 📁 Component Deep Dives
+## 📚 Complete Documentation
 
-For detailed "pin-to-pin" setup and dependency information, please refer to the individual module documentation:
+We have prepared a comprehensive documentation suite to help you understand every aspect of EnableU.
 
-- 🎨 **[Frontend Documentation](client/README.md)** - React, Tailwind 4, 3D Core.
-- 🐍 **[Python Backend Documentation](server_py/README.md)** - Flask, SQLAlchemy, Gamification Engine.
-- ⬢ **[Node Backend Documentation](server/README.md)** - Express services.
+- **[Start Here: Introduction](docs/01_INTRODUCTION.md)**
+- **[Step-by-Step Setup Guide](docs/02_SETUP_GUIDE.md)**
+- **[System Architecture](docs/03_ARCHITECTURE.md)**
+- **Developer Guides**:
+    - [Frontend Guide](docs/04_FRONTEND_GUIDE.md)
+    - [Python Backend API](docs/05_BACKEND_PYTHON_API.md)
+    - [Node.js Service](docs/06_BACKEND_NODE_SERVICE.md)
+- **[Admin & Security Manual](docs/07_ADMIN_AND_SECURITY.md)**
 
 ---
 
